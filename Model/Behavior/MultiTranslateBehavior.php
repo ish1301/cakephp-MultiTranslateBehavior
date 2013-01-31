@@ -93,6 +93,33 @@ class MultiTranslateBehavior extends TranslateBehavior {
 		$beforeFind = $this->runtime[$model->alias]['beforeFind'];
         
 		foreach ($results as $key => &$row) {
+			// To translate related data
+			$relations = array_merge(array_keys($model->hasMany), array_keys($model->hasOne), array_keys($model->belongsTo), array_keys($model->hasAndBelongsToMany));
+			foreach ($row as $relatedModel => &$relatedData) {
+				if (in_array($relatedModel, $relations)) {
+					$model->{$relatedModel}->recursive = -1;
+					if (!empty($relatedData[0])) {
+						foreach ($relatedData as &$relatedItem) {
+							if (!empty($model->{$relatedModel}->actsAs['MultiTranslate']) && !empty($relatedItem['id'])) {
+								$sql = sprintf('SELECT * FROM i18n WHERE locale="%s" AND model="%s" AND foreign_key="%s"', $locale, $model->{$relatedModel}->name, $relatedItem['id']);
+								$i18nData = $model->{$relatedModel}->query($sql);
+								foreach($i18nData as $i18nItem) {
+									$relatedItem[$i18nItem['i18n']['field']] = $i18nItem['i18n']['content'];
+								}
+							}
+						}
+					} else {
+						if (!empty($model->{$relatedModel}->actsAs['MultiTranslate']) && !empty($relatedData['id'])) {
+							$sql = sprintf('SELECT * FROM i18n WHERE locale="%s" AND model="%s" AND foreign_key="%s"', $locale, $model->{$relatedModel}->name, $relatedData['id']);
+							$i18nData = $model->{$relatedModel}->query($sql);
+							foreach($i18nData as $i18nItem) {
+								$relatedData[$i18nItem['i18n']['field']] = $i18nItem['i18n']['content'];
+							}
+						}
+					}
+				}
+			}
+			
 			$results[$key][$model->alias]['locale'] = (is_array($locale)) ? current($locale) : $locale;
 			foreach ($beforeFind as $_f => $field) {
 				$aliasField = is_numeric($_f) ? $field : $_f;
